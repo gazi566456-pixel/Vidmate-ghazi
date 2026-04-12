@@ -47,10 +47,10 @@ class HomeScreen extends ConsumerWidget {
               crossAxisCount: 4,
               padding: const EdgeInsets.all(16),
               children: [
-                _buildSiteIcon(context, 'YouTube', Icons.play_circle_filled, Colors.red, 'https://www.youtube.com'),
-                _buildSiteIcon(context, 'Facebook', Icons.facebook, Colors.blue, 'https://www.facebook.com'),
-                _buildSiteIcon(context, 'Instagram', Icons.camera_alt, Colors.purple, 'https://www.instagram.com'),
-                _buildSiteIcon(context, 'TikTok', Icons.music_note, Colors.black, 'https://www.tiktok.com'),
+                _buildSiteIcon(context, 'YouTube', 'assets/icons/youtube.png', 'https://www.youtube.com'),
+                _buildSiteIcon(context, 'Facebook', 'assets/icons/facebook.png', 'https://www.facebook.com'),
+                _buildSiteIcon(context, 'Instagram', 'assets/icons/instagram.png', 'https://www.instagram.com'),
+                _buildSiteIcon(context, 'TikTok', 'assets/icons/tiktok.png', 'https://www.tiktok.com'),
               ],
             ),
           ],
@@ -59,16 +59,22 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildSiteIcon(BuildContext context, String name, IconData icon, Color color, String url) {
-    return Column(
-      children: [
-        CircleAvatar(
-          backgroundColor: color.withOpacity(0.1),
-          child: Icon(icon, color: color),
-        ),
-        const SizedBox(height: 4),
-        Text(name, style: const TextStyle(fontSize: 12)),
-      ],
+  Widget _buildSiteIcon(BuildContext context, String name, String assetPath, String url) {
+    return GestureDetector(
+      onTap: () {
+        // Navigate to webview with this URL
+      },
+      child: Column(
+        children: [
+          CircleAvatar(
+            backgroundColor: Colors.transparent,
+            radius: 25,
+            child: Image.asset(assetPath, width: 40, height: 40, fit: BoxFit.contain),
+          ),
+          const SizedBox(height: 4),
+          Text(name, style: const TextStyle(fontSize: 12)),
+        ],
+      ),
     );
   }
 }
