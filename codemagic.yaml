@@ -7,7 +7,7 @@ workflows:
       java: 17
 
     scripts:
-      - name: Setup AndroidX and SDK 34
+      - name: Setup Android Build Environment
         script: |
           # Ensure gradle.properties has AndroidX enabled
           cat <<EOF > android/gradle.properties
@@ -27,9 +27,8 @@ workflows:
           distributionUrl=https\://services.gradle.org/distributions/gradle-7.6-all.zip
           EOF
 
-          # Update root build.gradle
-          if [ -f android/build.gradle ]; then
-            cat <<EOF > android/build.gradle
+          # Update root build.gradle with repositories
+          cat <<EOF > android/build.gradle
           buildscript {
               ext.kotlin_version = '1.8.22'
               repositories {
@@ -45,6 +44,7 @@ workflows:
               repositories {
                   google()
                   mavenCentral()
+                  maven { url 'https://jitpack.io' }
               }
           }
           rootProject.buildDir = '../build'
@@ -58,7 +58,35 @@ workflows:
               delete rootProject.buildDir
           }
           EOF
-          fi
+
+          # Update settings.gradle with dependencyResolutionManagement
+          cat <<EOF > android/settings.gradle
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+              repositories {
+                  google()
+                  mavenCentral()
+                  maven { url 'https://jitpack.io' }
+              }
+          }
+          include ':app'
+          def localPropertiesFile = new File(rootProject.projectDir, "local.properties")
+          def properties = new Properties()
+          if (localPropertiesFile.exists()) {
+              localPropertiesFile.withReader("UTF-8") { reader -> properties.load(reader) }
+          }
+          def flutterSdkPath = properties.getProperty("flutter.sdk")
+          if (flutterSdkPath != null) {
+              apply from: "\$flutterSdkPath/packages/flutter_tools/gradle/app_plugin_loader.gradle"
+          }
+          EOF
 
       - name: Clean
         script: |
@@ -70,7 +98,7 @@ workflows:
 
       - name: Build APK
         script: |
-          # Build release APK with SDK 34 and AndroidX
+          # Build release APK with SDK 34, AndroidX and FFmpeg fix
           flutter build apk --release
 
     artifacts:

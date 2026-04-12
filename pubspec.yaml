@@ -24,13 +24,13 @@ dependencies:
   path_provider: ^2.1.1
 
   # Webview and Network Interception
-  flutter_inappwebview: ^6.0.0 # Use a stable version
+  flutter_inappwebview: ^6.0.0
 
   # HTTP Client
   dio: ^5.3.0
 
-  # Media Processing
-  ffmpeg_kit_flutter_min: ^6.0.1
+  # Media Processing - Updated to a stable version
+  ffmpeg_kit_flutter_min: ^6.0.3
 
   # File Handling
   file_picker: ^6.1.1
@@ -48,9 +48,9 @@ dependencies:
   cached_network_image: ^3.3.0
 
   # YouTube Parsing
-  youtube_explode_dart: ^1.12.0 # Use latest stable
+  youtube_explode_dart: ^1.12.0
 
-  # Permissions Handling (Essential for runtime permissions)
+  # Permissions Handling
   permission_handler: ^10.4.3
 
 
@@ -61,7 +61,7 @@ dev_dependencies:
   flutter_lints: ^2.0.0
   isar_generator: ^3.1.0
   build_runner: ^2.4.6
-  flutter_gen_runner: ^5.4.0 # Useful for asset management if needed
+  flutter_gen_runner: ^5.4.0
 
 
 flutter:
