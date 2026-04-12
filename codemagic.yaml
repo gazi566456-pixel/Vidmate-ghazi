@@ -7,9 +7,17 @@ workflows:
       java: 17
 
     scripts:
-      - name: Setup Gradle and Kotlin Versions
+      - name: Setup AndroidX and SDK 34
         script: |
-          # Create or update gradle-wrapper.properties
+          # Ensure gradle.properties has AndroidX enabled
+          cat <<EOF > android/gradle.properties
+          org.gradle.jvmargs=-Xmx1536M
+          android.useAndroidX=true
+          android.enableJetifier=true
+          android.nonTransitiveRClass=true
+          EOF
+
+          # Ensure gradle-wrapper.properties is correct
           mkdir -p android/gradle/wrapper
           cat <<EOF > android/gradle/wrapper/gradle-wrapper.properties
           distributionBase=GRADLE_USER_HOME
@@ -19,7 +27,7 @@ workflows:
           distributionUrl=https\://services.gradle.org/distributions/gradle-7.6-all.zip
           EOF
 
-          # Update root build.gradle with correct versions
+          # Update root build.gradle
           if [ -f android/build.gradle ]; then
             cat <<EOF > android/build.gradle
           buildscript {
@@ -62,7 +70,7 @@ workflows:
 
       - name: Build APK
         script: |
-          # Build release APK
+          # Build release APK with SDK 34 and AndroidX
           flutter build apk --release
 
     artifacts:
