@@ -1,0 +1,282 @@
+import 'dart:async';
+import 'dart:io';
+import 'package:dio/dio.dart';
+import 'package:fpdart/fpdart.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:vidmate_clone_app/core/errors/exceptions.dart';
+import 'package:vidmate_clone_app/core/errors/failures.dart';
+import 'package:vidmate_clone_app/core/helpers/ffmpeg_service.dart';
+import 'package:vidmate_clone_app/domain/entities/download_media_info.dart';
+import 'package:vidmate_clone_app/domain/entities/stream_info.dart';
+import 'package:vidmate_clone_app/domain/repositories/download_repository.dart';
+
+enum DownloadStatus { queued, downloading, paused, completed, failed, processing }
+
+class DownloadItem {
+  final String id;
+  final String title;
+  final String? thumbnailUrl;
+  final String sourceUrl;
+  final String? filePath;
+  DownloadStatus status;
+  int downloadedBytes;
+  int? totalBytes;
+  double speed;
+  String? errorMessage;
+  DateTime startTime;
+  DateTime? endTime;
+  Stopwatch? _stopwatch;
+
+  DownloadItem({
+    required this.id,
+    required this.title,
+    this.thumbnailUrl,
+    required this.sourceUrl,
+    this.filePath,
+    this.status = DownloadStatus.queued,
+    this.downloadedBytes = 0,
+    this.totalBytes,
+    this.speed = 0,
+    this.errorMessage,
+    required this.startTime,
+    this.endTime,
+  }) {
+    _stopwatch = Stopwatch();
+  }
+
+  void startStopwatch() => _stopwatch?.start();
+  void stopStopwatch() => _stopwatch?.stop();
+
+  void updateProgress(int downloaded, int? total) {
+    downloadedBytes = downloaded;
+    totalBytes = total;
+    if (_stopwatch != null && _stopwatch!.isRunning && _stopwatch!.elapsedMilliseconds > 0) {
+      speed = (downloadedBytes / (_stopwatch!.elapsedMilliseconds / 1000.0));
+    }
+  }
+
+  DownloadItem copyWith({
+    DownloadStatus? status,
+    int? downloadedBytes,
+    int? totalBytes,
+    double? speed,
+    String? errorMessage,
+    DateTime? endTime,
+    String? filePath,
+  }) {
+    return DownloadItem(
+      id: id,
+      title: title,
+      thumbnailUrl: thumbnailUrl,
+      sourceUrl: sourceUrl,
+      filePath: filePath ?? this.filePath,
+      status: status ?? this.status,
+      downloadedBytes: downloadedBytes ?? this.downloadedBytes,
+      totalBytes: totalBytes ?? this.totalBytes,
+      speed: speed ?? this.speed,
+      errorMessage: errorMessage ?? this.errorMessage,
+      startTime: startTime,
+      endTime: endTime ?? this.endTime,
+    );
+  }
+}
+
+class DownloadRepositoryImpl implements DownloadRepository {
+  final Dio _dio;
+  final FFmpegService _ffmpegService;
+  final Map<String, DownloadItem> _downloadQueue = {};
+  final Map<String, CancelToken> _cancelTokens = {};
+  final Map<String, StreamSubscription> _progressSubscriptions = {};
+  final _itemUpdateStreamController = StreamController<DownloadItem>.broadcast();
+
+  DownloadRepositoryImpl(this._dio, this._ffmpegService);
+
+  @override
+  Stream<DownloadItem> get downloadUpdateStream => _itemUpdateStreamController.stream;
+
+  @override
+  List<DownloadItem> get activeDownloads => _downloadQueue.values
+      .where((item) => item.status == DownloadStatus.downloading || item.status == DownloadStatus.queued || item.status == DownloadStatus.processing)
+      .toList();
+
+  @override
+  List<DownloadItem> get completedDownloads => _downloadQueue.values
+      .where((item) => item.status == DownloadStatus.completed)
+      .toList();
+
+  @override
+  Future<void> startDownload(DownloadMediaInfo mediaInfo, StreamInfo selectedStream) async {
+    final String itemId = mediaInfo.id;
+    final String title = mediaInfo.title;
+    final String safeTitle = title.replaceAll(RegExp(r'[^\w\s-]'), '_');
+    final Directory appDocDir = await getApplicationDocumentsDirectory();
+    final String downloadPath = "${appDocDir.path}/downloads";
+    await Directory(downloadPath).create(recursive: true);
+
+    final DownloadItem newItem = DownloadItem(
+      id: itemId,
+      title: title,
+      thumbnailUrl: mediaInfo.thumbnailUrl,
+      sourceUrl: mediaInfo.sourceUrl,
+      startTime: DateTime.now(),
+    );
+
+    _downloadQueue[itemId] = newItem;
+    _emitUpdate(newItem);
+
+    // Start the actual download process
+    _processDownload(itemId, selectedStream, downloadPath, safeTitle);
+  }
+
+  Future<void> _processDownload(String itemId, StreamInfo stream, String downloadPath, String safeTitle) async {
+    _updateItemStatus(itemId, DownloadStatus.downloading);
+    final String extension = stream.format ?? (stream.type == StreamType.audio ? "mp3" : "mp4");
+    final String finalPath = "$downloadPath/$safeTitle.$extension";
+
+    try {
+      if (stream.type == StreamType.m3u8) {
+        final result = await _handleM3u8Download(itemId, stream.url, finalPath);
+        result.fold(
+          (failure) => _updateItemStatus(itemId, DownloadStatus.failed, errorMessage: (failure as GeneralFailure).message),
+          (path) => _updateItemStatus(itemId, DownloadStatus.completed, filePath: path, endTime: DateTime.now()),
+        );
+      } else {
+        final result = await _downloadSegment(itemId, stream.url, finalPath, DownloadStatus.downloading, (p, s, d, t) {});
+        result.fold(
+          (failure) => _updateItemStatus(itemId, DownloadStatus.failed, errorMessage: (failure as GeneralFailure).message),
+          (path) => _updateItemStatus(itemId, DownloadStatus.completed, filePath: path, endTime: DateTime.now()),
+        );
+      }
+    } catch (e) {
+      _updateItemStatus(itemId, DownloadStatus.failed, errorMessage: e.toString());
+    }
+  }
+
+  Future<Either<Failure, String>> _handleM3u8Download(String itemId, String m3u8Url, String tempOutputPath) async {
+    _ffmpegService.onProgress = (progress) {
+       final currentItem = _downloadQueue[itemId];
+       if (currentItem != null) {
+          currentItem.updateProgress((currentItem.totalBytes ?? 0) * progress.toInt(), currentItem.totalBytes);
+          _emitUpdate(currentItem..status = DownloadStatus.downloading);
+       }
+    };
+
+    try {
+      final String convertedPath = await _ffmpegService.downloadAndConvertM3u8ToMp4(m3u8Url, tempOutputPath);
+      return Right(convertedPath);
+    } catch (e) {
+      if (e is FFmpegExecutionException) return Left(FFmpegFailure(message: e.message));
+      return Left(GeneralFailure(e.toString()));
+    } finally {
+      _ffmpegService.onProgress = null;
+    }
+  }
+
+  Future<Either<Failure, String>> _downloadSegment(String itemId, String url, String outputPath, DownloadStatus initialStatus, Function progressUpdate) async {
+    final CancelToken cancelToken = CancelToken();
+    _cancelTokens[itemId] = cancelToken;
+    final DownloadItem currentItem = _downloadQueue[itemId]!;
+
+    try {
+      final response = await _dio.get(url,
+        options: Options(responseType: ResponseType.stream),
+        cancelToken: cancelToken,
+        onReceiveProgress: (received, total) {
+          currentItem.updateProgress(received, total > 0 ? total : null);
+          _emitUpdate(currentItem..status = initialStatus);
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final file = File(outputPath);
+        await file.parent.create(recursive: true);
+        final sink = file.openWrite();
+        int downloadedBytes = 0;
+        currentItem.startStopwatch();
+
+        await for (var chunk in response.data.stream) {
+          if (cancelToken.isCancelled) {
+            await sink.close();
+            await File(outputPath).delete();
+            throw CancellationException();
+          }
+          sink.add(chunk);
+          downloadedBytes += chunk.length;
+          currentItem.updateProgress(downloadedBytes, response.headers.value(HttpHeaders.contentLengthHeader) != null ? int.parse(response.headers.value(HttpHeaders.contentLengthHeader)!) : null);
+          _emitUpdate(currentItem..status = initialStatus);
+        }
+        await sink.close();
+        currentItem.stopStopwatch();
+        return Right(outputPath);
+      } else {
+        throw ServerException(message: "HTTP error: ${response.statusCode}");
+      }
+    } catch (e) {
+      currentItem.stopStopwatch();
+      if (e is CancellationException) {
+        if (await File(outputPath).exists()) await File(outputPath).delete();
+        return Left(DownloadCancelledFailure());
+      }
+      if (await File(outputPath).exists()) await File(outputPath).delete();
+      if (e is DioException) return Left(ServerFailure(message: e.message ?? "Download failed"));
+      return Left(GeneralFailure(e.toString()));
+    }
+  }
+
+  void _updateItemStatus(String? itemId, DownloadStatus status, {DateTime? endTime, int? downloadedBytes, String? errorMessage, String? filePath}) {
+    if (itemId == null) return;
+    final item = _downloadQueue[itemId];
+    if (item == null) return;
+
+    final updatedItem = item.copyWith(
+      status: status, endTime: endTime,
+      downloadedBytes: downloadedBytes ?? item.downloadedBytes,
+      errorMessage: errorMessage,
+      filePath: filePath,
+    );
+    _downloadQueue[itemId] = updatedItem;
+    _emitUpdate(updatedItem);
+
+    if (status == DownloadStatus.completed || status == DownloadStatus.failed) {
+      item.stopStopwatch();
+      _cancelTokens[itemId]?.cancel();
+      _cancelTokens.remove(itemId);
+      _progressSubscriptions[itemId]?.cancel();
+      _progressSubscriptions.remove(itemId);
+    }
+  }
+
+  void _emitUpdate(DownloadItem item) {
+    _itemUpdateStreamController.add(item);
+  }
+
+  @override
+  Future<void> cancelDownload(String id) async {
+    final CancelToken? cancelToken = _cancelTokens[id];
+    if (cancelToken != null && !cancelToken.isCancelled) {
+      cancelToken.cancel("Download cancelled by user.");
+      _updateItemStatus(id, DownloadStatus.failed, errorMessage: "Cancelled");
+    } else {
+       _updateItemStatus(id, DownloadStatus.failed, errorMessage: "Cancelled");
+    }
+  }
+
+  @override
+  DownloadItem? getDownloadItem(String id) => _downloadQueue[id];
+
+  @override
+  Future<void> pauseDownload(String id) async {} // Not implemented in MVP
+
+  @override
+  Future<void> resumeDownload(String id) async {} // Not implemented in MVP
+
+  @override
+  Future<void> removeDownload(String id, {bool deleteFile = true}) async {
+    final item = _downloadQueue[id];
+    if (item != null && deleteFile && item.filePath != null) {
+      final file = File(item.filePath!);
+      if (await file.exists()) await file.delete();
+    }
+    _downloadQueue.remove(id);
+  }
+}
