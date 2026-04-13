@@ -23,7 +23,7 @@ class SettingsScreen extends ConsumerWidget {
           ListTile(
             title: const Text('Clear Browser Cookies'),
             subtitle: const Text('Logs you out of websites in the browser tab.'),
-            leading: const Icon(Icons.cookie_remove),
+            leading: const Icon(Icons.delete),
             onTap: () async {
               await webviewNotifier.clearCookies();
               ScaffoldMessenger.of(context).showSnackBar(
