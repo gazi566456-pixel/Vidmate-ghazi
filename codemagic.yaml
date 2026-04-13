@@ -7,86 +7,23 @@ workflows:
       java: 17
 
     scripts:
-      - name: Setup Android Build Environment
+      - name: Fix Gradle Wrapper
         script: |
-          # Ensure gradle.properties has AndroidX enabled
-          cat <<EOF > android/gradle.properties
-          org.gradle.jvmargs=-Xmx1536M
-          android.useAndroidX=true
-          android.enableJetifier=true
-          android.nonTransitiveRClass=true
-          EOF
-
-          # Ensure gradle-wrapper.properties is correct
+          # Ensure the gradle wrapper properties file exists and update it
           mkdir -p android/gradle/wrapper
-          cat <<EOF > android/gradle/wrapper/gradle-wrapper.properties
-          distributionBase=GRADLE_USER_HOME
-          distributionPath=wrapper/dists
-          zipStoreBase=GRADLE_USER_HOME
-          zipStorePath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-7.6-all.zip
-          EOF
+          echo "distributionBase=GRADLE_USER_HOME" > android/gradle/wrapper/gradle-wrapper.properties
+          echo "distributionPath=wrapper/dists" >> android/gradle/wrapper/gradle-wrapper.properties
+          echo "zipStoreBase=GRADLE_USER_HOME" >> android/gradle/wrapper/gradle-wrapper.properties
+          echo "zipStorePath=wrapper/dists" >> android/gradle/wrapper/gradle-wrapper.properties
+          echo "distributionUrl=https\://services.gradle.org/distributions/gradle-7.6-all.zip" >> android/gradle/wrapper/gradle-wrapper.properties
 
-          # Update root build.gradle with repositories
-          cat <<EOF > android/build.gradle
-          buildscript {
-              ext.kotlin_version = '1.8.22'
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-              dependencies {
-                  classpath 'com.android.tools.build:gradle:7.3.0'
-                  classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:\$kotlin_version"
-              }
-          }
-          allprojects {
-              repositories {
-                  google()
-                  mavenCentral()
-                  maven { url 'https://jitpack.io' }
-              }
-          }
-          rootProject.buildDir = '../build'
-          subprojects {
-              project.buildDir = "\${rootProject.buildDir}/\${project.name}"
-          }
-          subprojects {
-              project.evaluationDependsOn(':app')
-          }
-          task clean(type: Delete) {
-              delete rootProject.buildDir
-          }
-          EOF
-
-          # Update settings.gradle with dependencyResolutionManagement
-          cat <<EOF > android/settings.gradle
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
-              repositories {
-                  google()
-                  mavenCentral()
-                  maven { url 'https://jitpack.io' }
-              }
-          }
-          include ':app'
-          def localPropertiesFile = new File(rootProject.projectDir, "local.properties")
-          def properties = new Properties()
-          if (localPropertiesFile.exists()) {
-              localPropertiesFile.withReader("UTF-8") { reader -> properties.load(reader) }
-          }
-          def flutterSdkPath = properties.getProperty("flutter.sdk")
-          if (flutterSdkPath != null) {
-              apply from: "\$flutterSdkPath/packages/flutter_tools/gradle/app_plugin_loader.gradle"
-          }
-          EOF
+      - name: Fix Kotlin and Gradle Build
+        script: |
+          # Ensure build.gradle exists and has correct versions
+          if [ -f android/build.gradle ]; then
+            sed -i 's/ext.kotlin_version.*/ext.kotlin_version = "1.8.22"/g' android/build.gradle
+            sed -i "s/classpath 'com.android.tools.build:gradle:.*/classpath 'com.android.tools.build:gradle:7.3.0'/g" android/build.gradle
+          fi
 
       - name: Clean
         script: |
@@ -98,7 +35,7 @@ workflows:
 
       - name: Build APK
         script: |
-          # Build release APK with SDK 34, AndroidX and FFmpeg fix
+          # Build release APK with explicit v2 embedding support
           flutter build apk --release
 
     artifacts:
