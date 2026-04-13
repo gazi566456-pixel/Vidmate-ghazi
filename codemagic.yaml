@@ -15,15 +15,35 @@ workflows:
           echo "distributionPath=wrapper/dists" >> android/gradle/wrapper/gradle-wrapper.properties
           echo "zipStoreBase=GRADLE_USER_HOME" >> android/gradle/wrapper/gradle-wrapper.properties
           echo "zipStorePath=wrapper/dists" >> android/gradle/wrapper/gradle-wrapper.properties
-          echo "distributionUrl=https\://services.gradle.org/distributions/gradle-7.6-all.zip" >> android/gradle/wrapper/gradle-wrapper.properties
+          echo "distributionUrl=https\://services.gradle.org/distributions/gradle-8.1-all.zip" >> android/gradle/wrapper/gradle-wrapper.properties
 
-      - name: Fix Kotlin and Gradle Build
+      - name: Fix Android SDK Versions
         script: |
-          # Ensure build.gradle exists and has correct versions
-          if [ -f android/build.gradle ]; then
-            sed -i 's/ext.kotlin_version.*/ext.kotlin_version = "1.8.22"/g' android/build.gradle
-            sed -i "s/classpath 'com.android.tools.build:gradle:.*/classpath 'com.android.tools.build:gradle:7.3.0'/g" android/build.gradle
+          # Force correct SDK versions in build.gradle (بدون sed)
+          if [ -f android/app/build.gradle ]; then
+            awk '
+            BEGIN {found=0}
+            /compileSdkVersion/ {print "    compileSdkVersion 35"; found=1; next}
+            /targetSdkVersion/ {print "        targetSdkVersion 35"; next}
+            /minSdkVersion/ {print "        minSdkVersion 21"; next}
+            {print}
+            END {
+              if (found==0) {
+                print "android {"
+                print "    compileSdkVersion 35"
+                print "    defaultConfig {"
+                print "        minSdkVersion 21"
+                print "        targetSdkVersion 35"
+                print "    }"
+                print "}"
+              }
+            }' android/app/build.gradle > android/app/build.gradle.tmp && mv android/app/build.gradle.tmp android/app/build.gradle
           fi
+
+      - name: Ensure AndroidX
+        script: |
+          echo "android.useAndroidX=true" >> android/gradle.properties
+          echo "android.enableJetifier=true" >> android/gradle.properties
 
       - name: Clean
         script: |
@@ -35,7 +55,6 @@ workflows:
 
       - name: Build APK
         script: |
-          # Build release APK with explicit v2 embedding support
           flutter build apk --release
 
     artifacts:
