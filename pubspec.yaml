@@ -29,8 +29,8 @@ dependencies:
   # HTTP Client
   dio: ^5.3.0
 
-  # Media Processing - Updated to a stable version
-  ffmpeg_kit_flutter_full_gpl: ^6.0.3
+  # Media Processing - Switched to ffmpeg_kit_flutter_new
+  ffmpeg_kit_flutter_new: ^4.1.0
 
   # File Handling
   file_picker: ^6.1.1
