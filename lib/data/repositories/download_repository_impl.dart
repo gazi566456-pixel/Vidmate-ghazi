@@ -191,7 +191,7 @@ class DownloadRepositoryImpl implements DownloadRepository {
         final file = File(outputPath);
         await file.parent.create(recursive: true);
         final sink = file.openWrite();
-        int downloadedBytes = 0;
+        num downloadedBytes = 0;
         currentItem.startStopwatch();
 
         await for (var chunk in response.data.stream) {

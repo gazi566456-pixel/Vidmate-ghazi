@@ -201,7 +201,7 @@ class DownloadRepositoryImpl implements DownloadRepository {
             throw CancellationException();
           }
           sink.add(chunk);
-          downloadedBytes += chunk.length;
+          downloadedBytes += chunk.length.toInt();
           currentItem.updateProgress(downloadedBytes, response.headers.value(HttpHeaders.contentLengthHeader) != null ? int.parse(response.headers.value(HttpHeaders.contentLengthHeader)!) : null);
           _emitUpdate(currentItem..status = initialStatus);
         }
