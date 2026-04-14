@@ -7,45 +7,12 @@ workflows:
       java: 17
 
     scripts:
-      - name: Fix Gradle Wrapper
-        script: |
-          # Ensure the gradle wrapper properties file exists and update it
-          mkdir -p android/gradle/wrapper
-          echo "distributionBase=GRADLE_USER_HOME" > android/gradle/wrapper/gradle-wrapper.properties
-          echo "distributionPath=wrapper/dists" >> android/gradle/wrapper/gradle-wrapper.properties
-          echo "zipStoreBase=GRADLE_USER_HOME" >> android/gradle/wrapper/gradle-wrapper.properties
-          echo "zipStorePath=wrapper/dists" >> android/gradle/wrapper/gradle-wrapper.properties
-          echo "distributionUrl=https\://services.gradle.org/distributions/gradle-8.1-all.zip" >> android/gradle/wrapper/gradle-wrapper.properties
-
-      - name: Fix Android SDK Versions
-        script: |
-          # Force correct SDK versions in build.gradle (بدون sed)
-          if [ -f android/app/build.gradle ]; then
-            awk '
-            BEGIN {found=0}
-            /compileSdkVersion/ {print "    compileSdkVersion 35"; found=1; next}
-            /targetSdkVersion/ {print "        targetSdkVersion 35"; next}
-            /minSdkVersion/ {print "        minSdkVersion 21"; next}
-            {print}
-            END {
-              if (found==0) {
-                print "android {"
-                print "    compileSdkVersion 35"
-                print "    defaultConfig {"
-                print "        minSdkVersion 21"
-                print "        targetSdkVersion 35"
-                print "    }"
-                print "}"
-              }
-            }' android/app/build.gradle > android/app/build.gradle.tmp && mv android/app/build.gradle.tmp android/app/build.gradle
-          fi
-
-      - name: Ensure AndroidX
+      - name: Enable AndroidX
         script: |
           echo "android.useAndroidX=true" >> android/gradle.properties
           echo "android.enableJetifier=true" >> android/gradle.properties
 
-      - name: Clean
+      - name: Clean project
         script: |
           flutter clean
 
