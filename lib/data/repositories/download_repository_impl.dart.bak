@@ -156,7 +156,11 @@ class DownloadRepositoryImpl implements DownloadRepository {
     _ffmpegService.onProgress = (progress) {
        final currentItem = _downloadQueue[itemId];
        if (currentItem != null) {
-          currentItem.updateProgress((currentItem.totalBytes ?? 0) * progress.toInt(), currentItem.totalBytes);
+          final total = currentItem.totalBytes ?? 0;
+currentItem.updateProgress(
+  (total * progress).toInt(),
+  currentItem.totalBytes,
+);
           _emitUpdate(currentItem..status = DownloadStatus.downloading);
        }
     };
@@ -191,7 +195,7 @@ class DownloadRepositoryImpl implements DownloadRepository {
         final file = File(outputPath);
         await file.parent.create(recursive: true);
         final sink = file.openWrite();
-        num downloadedBytes = 0;
+        int downloadedBytes = 0;
         currentItem.startStopwatch();
 
         await for (var chunk in response.data.stream) {
@@ -201,8 +205,13 @@ class DownloadRepositoryImpl implements DownloadRepository {
             throw CancellationException();
           }
           sink.add(chunk);
-          downloadedBytes += chunk.length.toInt();
-          currentItem.updateProgress(downloadedBytes, response.headers.value(HttpHeaders.contentLengthHeader) != null ? int.parse(response.headers.value(HttpHeaders.contentLengthHeader)!) : null);
+          downloadedBytes = downloadedBytes + chunk.length.toInt();
+          currentItem.updateProgress(
+  downloadedBytes.toInt(),
+  response.headers.value(HttpHeaders.contentLengthHeader) != null
+      ? int.tryParse(response.headers.value(HttpHeaders.contentLengthHeader)!)
+      : null,
+);
           _emitUpdate(currentItem..status = initialStatus);
         }
         await sink.close();

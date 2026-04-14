@@ -205,7 +205,8 @@ currentItem.updateProgress(
             throw CancellationException();
           }
           sink.add(chunk);
-          downloadedBytes += chunk.length;
+          final int len = chunk.length;
+downloadedBytes += len;
           currentItem.updateProgress(
   downloadedBytes.toInt(),
   response.headers.value(HttpHeaders.contentLengthHeader) != null
