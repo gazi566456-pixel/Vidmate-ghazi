@@ -36,7 +36,7 @@ namespace 'com.example.vidmate_clone_app'
     }
 
     kotlinOptions {
-        jvmTarget = '17'
+        jvmTarget = '1.8'
     }
 
     sourceSets {
