@@ -45,7 +45,7 @@ namespace 'com.example.vidmate_clone_app'
 
     defaultConfig {
         applicationId "com.example.vidmate_clone_app"
-        minSdkVersion 21
+        minSdkVersion 24
         targetSdkVersion 35
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
