@@ -30,7 +30,7 @@ dependencies:
   dio: ^5.3.0
 
   # Media Processing
-  ffmpeg_kit_flutter: ^6.0.3
+  ffmpeg_kit_flutter: 5.1.0
   # File Handling
   file_picker: ^6.1.1
 
