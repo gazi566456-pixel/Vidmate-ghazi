@@ -1,0 +1,28 @@
+workflows:
+  android-release:
+    name: Android APK Build
+
+    environment:
+      flutter: 3.22.0
+      java: 17
+
+    scripts:
+      - name: Enable AndroidX
+        script: |
+          echo "android.useAndroidX=true" >> android/gradle.properties
+          echo "android.enableJetifier=true" >> android/gradle.properties
+
+      - name: Clean project
+        script: |
+          flutter clean
+
+      - name: Get packages
+        script: |
+          flutter pub get
+
+      - name: Build APK
+        script: |
+          flutter build apk --release
+
+    artifacts:
+      - build/app/outputs/flutter-apk/app-release.apk

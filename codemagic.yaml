@@ -7,22 +7,20 @@ workflows:
       java: 17
 
     scripts:
-      - name: Enable AndroidX
-        script: |
-          echo "android.useAndroidX=true" >> android/gradle.properties
-          echo "android.enableJetifier=true" >> android/gradle.properties
-
       - name: Clean project
-        script: |
-          flutter clean
+        script: flutter clean
 
       - name: Get packages
+        script: flutter pub get
+
+      - name: Force SDK 34 (hard fix)
         script: |
-          flutter pub get
+          sed -i 's/compileSdkVersion 35/compileSdkVersion 34/g' android/app/build.gradle || true
+          sed -i 's/compileSdk = 35/compileSdk = 34/g' android/app/build.gradle || true
+          sed -i 's/targetSdkVersion 35/targetSdkVersion 34/g' android/app/build.gradle || true
 
       - name: Build APK
-        script: |
-          flutter build apk --release
+        script: flutter build apk --release
 
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
